@@ -1,0 +1,114 @@
+---
+title: "Machine Learning_Project"
+author: "Bharat"
+date: "December 26, 2015"
+output: pdf_document
+---
+#BackGround
+
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+#Installing Packages
+```{r}
+library(caret)
+library(ggplot2)
+library(lattice)
+library(kernlab)
+library(randomForest)
+library(rpart)
+library(rattle)
+library(rpart)
+library(rpart.plot)
+```
+#Downloading datasets
+
+```{r}
+traindata <- read.csv('R/pml-training.csv')
+validdata <- read.csv('R/pml-testing.csv')
+```
+
+#Preprocessing Operations
+##Clearing zero variance
+
+```{r}
+set.seed(32768)
+nzv <- nearZeroVar(traindata)
+traindata <- traindata[-nzv]
+validdata <-validdata[-nzv]
+
+```
+
+##Clearing irrelevant columns
+
+```{r}
+Cl <- grep("name|timestamp|window|X|^max|^min|^std|^amplitude", colnames(traindata), value=F) 
+traindata <- traindata[,-Cl]
+validdata <-validdata[,-Cl]
+
+```
+
+##Clearing >95% NAs
+```{r}
+
+traindata[traindata==""] <- NA
+NAs <- apply(traindata, 2, function(x) sum(is.na(x)))/nrow(traindata)
+traindata <- traindata[!(NAs>0.95)]
+
+validdata[validdata==""] <- NA
+NAs <- apply(validdata, 2, function(x) sum(is.na(x)))/nrow(validdata)
+validdata <- validdata[!(NAs>0.95)]
+```
+
+##Cross Validation
+```{r}
+trainidx <- createDataPartition(traindata$classe,p=.9,list=FALSE)
+traindata = traindata[trainidx,]
+testdata = traindata[-trainidx,]
+```
+
+#Model Application
+##CART
+```{r}
+model1 <- rpart(classe ~ ., data=traindata, method="class")
+fancyRpartPlot(model1)
+#rpart.plot(model1, main="Classification Tree", extra=102, under=TRUE, faclen=0)
+
+
+# Predicting:
+prediction1 <- predict(model1, testdata, type = "class")
+
+# Testing:
+confusionMatrix(prediction1, testdata$classe)
+
+```
+##Random Forest
+```{r}
+model2 <- randomForest(classe ~. , data=traindata, method="class")
+
+# Predicting:
+prediction2 <- predict(model2, testdata, type = "class")
+
+# Test results on subTesting data set:
+confusionMatrix(prediction2, testdata$classe)
+
+#Predictor importance
+importance(model2)
+```
+
+#Predicting on Validation Data Set - FINAL
+```{r}
+final <- predict(model2, validdata, type="class")
+final
+```
+#Write files for submission
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(final)
